@@ -18,6 +18,40 @@ async function fetchJSON(path) {
   }
   return res.json();
 }
+export async function uploadDataFile(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${BASE_URL}/api/data/upload`, {
+    method: "POST",
+    body: formData,
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to upload file");
+  }
+
+  return data;
+}
+// export async function uploadDataFile(file) {
+//   const formData = new FormData();
+//   formData.append("file", file);
+
+//   const response = await fetch(`${API_BASE_URL}/api/data/upload`, {
+//     method: "POST",
+//     body: formData,
+//   });
+
+//   const data = await response.json();
+
+//   if (!response.ok) {
+//     throw new Error(data.message || "Failed to upload file");
+//   }
+
+//   return data;
+// }
 
 export const api = {
   getOverview: () => fetchJSON('/api/overview'),

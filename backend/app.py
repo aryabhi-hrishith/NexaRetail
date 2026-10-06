@@ -5,16 +5,6 @@ for the React frontend.
 
 Run with:
     python app.py
-
-Endpoints:
-    GET /api/overview
-    GET /api/products
-    GET /api/forecast
-    GET /api/customers/segments
-    GET /api/customers/preferences
-    GET /api/promotions          ?segment=<int>  (optional)
-    GET /api/sales/daily
-    GET /health
 """
 
 import os
@@ -29,6 +19,7 @@ from flask_cors import CORS
 # ---------------------------------------------------------------------------
 sys.path.insert(0, str(Path(__file__).parent))
 
+from src.data_upload import save_uploaded_file, inspect_file
 from src.data_prep import load_data, validate_data
 from src.forecasting import train_models, forecast_7_days
 from src.personalization import (
@@ -46,43 +37,69 @@ app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # ---------------------------------------------------------------------------
-# Data directory -- override with DATA_DIR env var if needed
+# Data directory
 # ---------------------------------------------------------------------------
-DATA_DIR = os.environ.get("DATA_DIR", str(Path(__file__).parent / "data"))
+DATA_DIR = os.environ.get(
+    "DATA_DIR",
+    str(Path(__file__).parent / "data")
+)
 
 # ---------------------------------------------------------------------------
-# Startup: load data and run the full ML pipeline once, then cache results
+# Cache
 # ---------------------------------------------------------------------------
 _cache = {}
 
 
 def get_analytics():
     """Load data and run the full pipeline. Results are cached in memory."""
+
     if _cache:
         return _cache
 
     print("Loading data from:", DATA_DIR)
+
     data = load_data(DATA_DIR)
     validate_data(data)
 
     print("Training forecasting models...")
+
     models = train_models(data["sales"])
-    forecast = forecast_7_days(data["sales"], models)
+    forecast = forecast_7_days(
+        data["sales"],
+        models
+    )
 
     print("Building customer features and segments...")
+
     customer_features = build_customer_features(
-        data["customers"], data["purchases"], data["products"]
+        data["customers"],
+        data["purchases"],
+        data["products"],
     )
-    customer_segments, _, _ = segment_customers(customer_features)
+
+    customer_segments, _, _ = segment_customers(
+        customer_features
+    )
+
     preferences = segment_preferences(
-        customer_segments, data["purchases"], data["products"]
+        customer_segments,
+        data["purchases"],
+        data["products"],
     )
 
     print("Building inventory report...")
-    inventory = build_inventory_report(data["products"], forecast)
+
+    inventory = build_inventory_report(
+        data["products"],
+        forecast,
+    )
 
     print("Generating promotion plan...")
-    promotions = generate_promotion_plan(inventory, preferences)
+
+    promotions = generate_promotion_plan(
+        inventory,
+        preferences,
+    )
 
     _cache["data"] = data
     _cache["forecast"] = forecast
@@ -92,23 +109,160 @@ def get_analytics():
     _cache["promotions"] = promotions
 
     print("Pipeline ready.")
+
     return _cache
 
 
 # ---------------------------------------------------------------------------
-# Helper: safely convert NaN / numpy scalars to plain Python types
+# Helper: safely convert DataFrame to JSON-safe records
 # ---------------------------------------------------------------------------
 def _to_records(df):
-    """Convert a DataFrame to a JSON-safe list of dicts."""
-    return df.where(df.notna(), None).to_dict(orient="records")
+    """Convert a DataFrame to a JSON-safe list of dictionaries."""
+
+    return df.where(
+        df.notna(),
+        None
+    ).to_dict(
+        orient="records"
+    )
 
 
 # ---------------------------------------------------------------------------
-# Health check
+# POST /api/data/upload
+# ---------------------------------------------------------------------------
+@app.route("/api/data/upload", methods=["POST"])
+def upload_data():
+    """Receive and inspect a retailer CSV/XLS/XLSX file."""
+
+    if "file" not in request.files:
+        return jsonify({
+            "status": "error",
+            "message": "No file was provided.",
+        }), 400
+
+    uploaded_file = request.files["file"]
+
+    if not uploaded_file.filename:
+        return jsonify({
+            "status": "error",
+            "message": "No filename was provided.",
+        }), 400
+
+    try:
+        saved_path, original_filename = save_uploaded_file(
+            uploaded_file
+        )
+
+        result = inspect_file(
+            saved_path,
+            original_filename,
+        )
+
+        return jsonify({
+            "status": "success",
+            "message": "File processed successfully.",
+            "data": result,
+        })
+
+    except ValueError as exc:
+        return jsonify({
+            "status": "error",
+            "message": str(exc),
+        }), 400
+
+    except Exception as exc:
+        print(
+            f"Data upload processing error: "
+            f"{type(exc).__name__}: {exc}"
+        )
+
+        return jsonify({
+            "status": "error",
+            "message": (
+                "The file could not be processed. "
+                "Please check that it is a valid CSV or Excel file."
+            ),
+        }), 400
+
+
+# ---------------------------------------------------------------------------
+# POST /api/data/analyze
+# ---------------------------------------------------------------------------
+@app.route("/api/data/analyze", methods=["POST"])
+def analyze_data():
+    """
+    Analyze an already-uploaded file.
+
+    Expected JSON:
+        {
+            "filename": "products.csv"
+        }
+    """
+
+    try:
+        data = request.get_json(silent=True) or {}
+
+        filename = data.get("filename")
+
+        if not filename:
+            return jsonify({
+                "status": "error",
+                "message": "Filename is required.",
+            }), 400
+
+        # Prevent accidental path traversal.
+        filename = os.path.basename(filename)
+
+        file_path = os.path.join(
+            DATA_DIR,
+            "uploads",
+            filename,
+        )
+
+        if not os.path.exists(file_path):
+            return jsonify({
+                "status": "error",
+                "message": "Uploaded file not found.",
+            }), 404
+
+        # inspect_file now requires both the path and original filename.
+        result = inspect_file(
+            file_path,
+            filename,
+        )
+
+        return jsonify({
+            "status": "success",
+            "message": "Data analyzed successfully.",
+            "data": result,
+        })
+
+    except ValueError as exc:
+        return jsonify({
+            "status": "error",
+            "message": str(exc),
+        }), 400
+
+    except Exception as exc:
+        print(
+            f"Data analysis error: "
+            f"{type(exc).__name__}: {exc}"
+        )
+
+        return jsonify({
+            "status": "error",
+            "message": str(exc),
+        }), 500
+
+
+# ---------------------------------------------------------------------------
+# GET /health
 # ---------------------------------------------------------------------------
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok"})
+    return jsonify({
+        "status": "ok"
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -116,29 +270,50 @@ def health():
 # ---------------------------------------------------------------------------
 @app.route("/api/overview")
 def overview():
+
     c = get_analytics()
+
     data = c["data"]
     inventory = c["inventory"]
     forecast = c["forecast"]
 
-    total_stock = int(data["products"]["stock_qty"].sum())
-    total_forecast = float(round(forecast["forecast_7d"].sum(), 1))
-    high_risk_count = int((inventory["stock_risk"] == "High").sum())
-    medium_risk_count = int((inventory["stock_risk"] == "Medium").sum())
-    low_risk_count = int((inventory["stock_risk"] == "Low").sum())
-
-    return jsonify(
-        {
-            "products": len(data["products"]),
-            "customers": len(data["customers"]),
-            "total_stock_qty": total_stock,
-            "forecast_7d_total": total_forecast,
-            "high_risk_products": high_risk_count,
-            "medium_risk_products": medium_risk_count,
-            "low_risk_products": low_risk_count,
-            "categories": sorted(data["products"]["category"].unique().tolist()),
-        }
+    total_stock = int(
+        data["products"]["stock_qty"].sum()
     )
+
+    total_forecast = float(
+        round(
+            forecast["forecast_7d"].sum(),
+            1
+        )
+    )
+
+    high_risk_count = int(
+        (inventory["stock_risk"] == "High").sum()
+    )
+
+    medium_risk_count = int(
+        (inventory["stock_risk"] == "Medium").sum()
+    )
+
+    low_risk_count = int(
+        (inventory["stock_risk"] == "Low").sum()
+    )
+
+    return jsonify({
+        "products": len(data["products"]),
+        "customers": len(data["customers"]),
+        "total_stock_qty": total_stock,
+        "forecast_7d_total": total_forecast,
+        "high_risk_products": high_risk_count,
+        "medium_risk_products": medium_risk_count,
+        "low_risk_products": low_risk_count,
+        "categories": sorted(
+            data["products"]["category"]
+            .unique()
+            .tolist()
+        ),
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +321,9 @@ def overview():
 # ---------------------------------------------------------------------------
 @app.route("/api/products")
 def products():
+
     c = get_analytics()
+
     inventory = c["inventory"]
 
     cols = [
@@ -163,12 +340,28 @@ def products():
         "margin",
         "margin_pct",
     ]
-    cols = [col for col in cols if col in inventory.columns]
-    display = inventory[cols].copy()
-    display["stock_coverage_ratio"] = display["stock_coverage_ratio"].round(2)
-    display["margin_pct"] = display["margin_pct"].round(4)
 
-    return jsonify(_to_records(display))
+    cols = [
+        col
+        for col in cols
+        if col in inventory.columns
+    ]
+
+    display = inventory[cols].copy()
+
+    if "stock_coverage_ratio" in display.columns:
+        display["stock_coverage_ratio"] = (
+            display["stock_coverage_ratio"].round(2)
+        )
+
+    if "margin_pct" in display.columns:
+        display["margin_pct"] = (
+            display["margin_pct"].round(4)
+        )
+
+    return jsonify(
+        _to_records(display)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -176,17 +369,30 @@ def products():
 # ---------------------------------------------------------------------------
 @app.route("/api/forecast")
 def forecast_endpoint():
+
     c = get_analytics()
+
     forecast = c["forecast"]
     data = c["data"]
 
     merged = forecast.merge(
-        data["products"][["product_id", "product_name", "category"]],
+        data["products"][
+            [
+                "product_id",
+                "product_name",
+                "category",
+            ]
+        ],
         on="product_id",
         how="left",
-    ).sort_values("forecast_7d", ascending=False)
+    ).sort_values(
+        "forecast_7d",
+        ascending=False,
+    )
 
-    return jsonify(_to_records(merged))
+    return jsonify(
+        _to_records(merged)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -194,34 +400,66 @@ def forecast_endpoint():
 # ---------------------------------------------------------------------------
 @app.route("/api/customers/segments")
 def customer_segments_endpoint():
+
     c = get_analytics()
+
     segments = c["customer_segments"]
 
     summary = (
-        segments.groupby("segment")
+        segments
+        .groupby("segment")
         .agg(
             customers=("customer_id", "count"),
             total_spend=("total_spend", "sum"),
             avg_spend=("total_spend", "mean"),
             avg_units=("total_units", "mean"),
-            avg_unique_products=("unique_products", "mean"),
+            avg_unique_products=(
+                "unique_products",
+                "mean",
+            ),
         )
         .reset_index()
     )
-    summary["total_spend"] = summary["total_spend"].round(2)
-    summary["avg_spend"] = summary["avg_spend"].round(2)
-    summary["avg_units"] = summary["avg_units"].round(1)
-    summary["avg_unique_products"] = summary["avg_unique_products"].round(1)
+
+    summary["total_spend"] = (
+        summary["total_spend"].round(2)
+    )
+
+    summary["avg_spend"] = (
+        summary["avg_spend"].round(2)
+    )
+
+    summary["avg_units"] = (
+        summary["avg_units"].round(1)
+    )
+
+    summary["avg_unique_products"] = (
+        summary["avg_unique_products"].round(1)
+    )
 
     detail_cols = [
-        "customer_id", "region", "age",
-        "total_spend", "total_units", "unique_products",
-        "preferred_category", "segment",
+        "customer_id",
+        "region",
+        "age",
+        "total_spend",
+        "total_units",
+        "unique_products",
+        "preferred_category",
+        "segment",
     ]
-    detail_cols = [col for col in detail_cols if col in segments.columns]
+
+    detail_cols = [
+        col
+        for col in detail_cols
+        if col in segments.columns
+    ]
+
     detail = segments[detail_cols].copy()
 
-    return jsonify({"summary": _to_records(summary), "detail": _to_records(detail)})
+    return jsonify({
+        "summary": _to_records(summary),
+        "detail": _to_records(detail),
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -229,27 +467,46 @@ def customer_segments_endpoint():
 # ---------------------------------------------------------------------------
 @app.route("/api/customers/preferences")
 def customer_preferences_endpoint():
+
     c = get_analytics()
-    return jsonify(_to_records(c["preferences"]))
+
+    return jsonify(
+        _to_records(
+            c["preferences"]
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
-# GET /api/promotions   ?segment=<int>
+# GET /api/promotions
 # ---------------------------------------------------------------------------
 @app.route("/api/promotions")
 def promotions_endpoint():
+
     c = get_analytics()
+
     promotions = c["promotions"].copy()
 
     segment_param = request.args.get("segment")
+
     if segment_param is not None:
+
         try:
             seg = int(segment_param)
-            promotions = promotions[promotions["customer_segment"] == seg]
-        except ValueError:
-            return jsonify({"error": "segment must be an integer"}), 400
 
-    return jsonify(_to_records(promotions))
+            promotions = promotions[
+                promotions["customer_segment"] == seg
+            ]
+
+        except ValueError:
+
+            return jsonify({
+                "error": "segment must be an integer"
+            }), 400
+
+    return jsonify(
+        _to_records(promotions)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -257,22 +514,50 @@ def promotions_endpoint():
 # ---------------------------------------------------------------------------
 @app.route("/api/sales/daily")
 def sales_daily():
+
     c = get_analytics()
+
     daily = (
         c["data"]["sales"]
-        .groupby("date", as_index=False)["quantity_sold"]
+        .groupby(
+            "date",
+            as_index=False
+        )["quantity_sold"]
         .sum()
         .sort_values("date")
     )
-    daily["date"] = daily["date"].dt.strftime("%Y-%m-%d")
-    return jsonify(_to_records(daily))
+
+    daily["date"] = (
+        daily["date"]
+        .dt.strftime("%Y-%m-%d")
+    )
+
+    return jsonify(
+        _to_records(daily)
+    )
 
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    print(f"NexaRetail API starting on http://localhost:{port}")
+
+    port = int(
+        os.environ.get(
+            "PORT",
+            5000
+        )
+    )
+
+    print(
+        f"NexaRetail API starting on "
+        f"http://localhost:{port}"
+    )
+
     get_analytics()
-    app.run(host="0.0.0.0", port=port, debug=False)
+
+    app.run(
+        host="0.0.0.0",
+        port=port,
+        debug=False,
+    )

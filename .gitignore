@@ -48,3 +48,5 @@ dist/
 # Old nested repositories / references
 NexaRetail/
 backend-temp/
+# Uploaded retailer data
+backend/data/uploads/

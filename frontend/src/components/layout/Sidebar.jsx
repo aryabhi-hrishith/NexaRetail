@@ -7,6 +7,7 @@ import {
   Users,
   History,
   Settings,
+  Database,
   TrendingUp,
   AlertOctagon,
   ChevronRight,
@@ -17,7 +18,7 @@ import { useApp } from '../../context/AppContext';
 
 export function Sidebar({ mobileOpen, setMobileOpen }) {
   const location = useLocation();
-  const { products, campaigns } = useApp();
+  const { products, campaigns, uploadedFiles } = useApp();
 
   // Calculate dynamic alerts
   const lowOrCriticalStockCount = products.filter(
@@ -32,6 +33,13 @@ export function Sidebar({ mobileOpen, setMobileOpen }) {
       path: '/',
       icon: LayoutDashboard,
       badge: null,
+    },
+    {
+      name: 'Data Hub',
+      path: '/data-hub',
+      icon: Database,
+      badge: uploadedFiles.length > 0 ? `${uploadedFiles.length} files` : null,
+      badgeColor: 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30',
     },
     {
       name: 'Promotion Planner',

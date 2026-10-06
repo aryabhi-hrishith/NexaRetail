@@ -41,6 +41,90 @@ export function AppProvider({ children }) {
   // Planner prefill state (for 1-click launch from other pages)
   const [plannerPrefill, setPlannerPrefill] = useState(null);
 
+  // Uploaded files state for Data Hub
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+
+  const addUploadedFiles = (filesList) => {
+  const validExtensions = ['csv', 'xlsx', 'xls'];
+  let errorMsg = null;
+  let addedCount = 0;
+
+  const updatedFiles = [...uploadedFiles];
+
+  Array.from(filesList).forEach((item) => {
+    // Supports both a normal browser File and
+    // an object containing { file, backendData }
+    const file = item.file || item;
+    const backendData = item.backendData || null;
+
+    const ext = file.name.split('.').pop()?.toLowerCase();
+
+    if (!ext || !validExtensions.includes(ext)) {
+      errorMsg = `Unsupported format for "${file.name}". Please upload .csv, .xlsx, or .xls files.`;
+      return;
+    }
+
+    if (file.size === 0) {
+      errorMsg = `File "${file.name}" is empty (0 bytes).`;
+      return;
+    }
+
+    if (
+      updatedFiles.some(
+        (f) => f.name.toLowerCase() === file.name.toLowerCase()
+      )
+    ) {
+      errorMsg = `File "${file.name}" has already been uploaded.`;
+      return;
+    }
+
+    updatedFiles.push({
+      id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      file,
+      name: file.name,
+      size: file.size,
+      type: ext.toUpperCase(),
+
+      // Upload state
+      status: backendData ? 'Analyzed' : 'Ready',
+
+      uploadTime: new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+
+      // Backend analysis
+      analysis: backendData,
+    });
+
+    addedCount++;
+  });
+
+  setUploadedFiles(updatedFiles);
+
+  if (errorMsg) {
+    addToast(
+      'Upload Notice',
+      errorMsg,
+      addedCount > 0 ? 'warning' : 'danger'
+    );
+  } else if (addedCount > 0) {
+    addToast(
+      'Files Added',
+      `${addedCount} file(s) added successfully to Data Hub.`,
+      'success'
+    );
+  }
+};
+
+  const removeUploadedFile = (id) => {
+    const fileToRemove = uploadedFiles.find(f => f.id === id);
+    setUploadedFiles((prev) => prev.filter((f) => f.id !== id));
+    if (fileToRemove) {
+      addToast('File Removed', `"${fileToRemove.name}" removed from Data Hub.`, 'info');
+    }
+  };
+
   // ── Backend API integration ────────────────────────────────────────────
   // 'idle' | 'loading' | 'ready' | 'error'
   const [apiStatus, setApiStatus] = useState('idle');
@@ -315,6 +399,9 @@ export function AppProvider({ children }) {
         addProduct,
         updateSettings,
         navigateToPlannerWith,
+        uploadedFiles,
+        addUploadedFiles,
+        removeUploadedFile,
         // ── Backend API ──────────────────────────────────────────
         apiStatus,          // 'idle'|'loading'|'ready'|'error'
         apiData,            // raw backend response objects
