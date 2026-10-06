@@ -1,0 +1,31 @@
+product_id,product_name,category,price,cost,stock_qty
+P001,Snacks Product 1,Snacks,355.06,231.12,325
+P002,Beverages Product 2,Beverages,322.89,184.58,606
+P003,Breakfast Product 3,Breakfast,439.76,318.85,513
+P004,Dairy Product 4,Dairy,83.81,54.78,558
+P005,Personal Care Product 5,Personal Care,185.74,141.75,555
+P006,Household Product 6,Household,375.56,244.86,464
+P007,Snacks Product 7,Snacks,125.44,84.99,626
+P008,Beverages Product 8,Beverages,377.61,262.55,82
+P009,Breakfast Product 9,Breakfast,348.4,220.03,84
+P010,Dairy Product 10,Dairy,405.11,295.34,680
+P011,Personal Care Product 11,Personal Care,111.75,73.46,368
+P012,Household Product 12,Household,94.8,67.03,68
+P013,Snacks Product 13,Snacks,342.8,264.82,311
+P014,Beverages Product 14,Beverages,185.59,122.12,255
+P015,Breakfast Product 15,Breakfast,109.58,63.54,493
+P016,Dairy Product 16,Dairy,125.3,88.22,353
+P017,Personal Care Product 17,Personal Care,213.6,158.39,455
+P018,Household Product 18,Household,161.19,119.51,502
+P019,Snacks Product 19,Snacks,368.0,235.2,632
+P020,Beverages Product 20,Beverages,316.65,184.34,230
+P021,Breakfast Product 21,Breakfast,113.96,62.87,565
+P022,Dairy Product 22,Dairy,309.24,220.24,559
+P023,Personal Care Product 23,Personal Care,357.91,234.63,373
+P024,Household Product 24,Household,88.71,51.13,415
+P025,Snacks Product 25,Snacks,310.73,204.57,604
+P026,Beverages Product 26,Beverages,351.3,244.5,413
+P027,Breakfast Product 27,Breakfast,262.5,178.14,564
+P028,Dairy Product 28,Dairy,42.94,27.93,240
+P029,Personal Care Product 29,Personal Care,120.13,77.36,695
+P030,Household Product 30,Household,128.25,72.26,603
