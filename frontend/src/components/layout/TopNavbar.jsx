@@ -63,7 +63,7 @@ export function TopNavbar({ setMobileOpen }) {
   };
 
   const currentMeta = pageTitles[location.pathname] || {
-    title: 'OptiAlign Dashboard',
+    title: 'NexaRetail Dashboard',
     subtitle: 'Retail Optimization Platform',
   };
 

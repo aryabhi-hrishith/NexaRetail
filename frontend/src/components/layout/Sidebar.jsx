@@ -87,7 +87,7 @@ export function Sidebar({ mobileOpen, setMobileOpen }) {
           <div>
             <div className="flex items-center gap-1.5">
               <span className="font-extrabold text-base tracking-tight text-white font-sans">
-                OptiAlign
+                NexaRetail
               </span>
               <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                 PRO

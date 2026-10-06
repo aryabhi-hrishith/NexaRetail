@@ -13,7 +13,7 @@ const AppContext = createContext();
 export function AppProvider({ children }) {
   // Products state
   const [products, setProducts] = useState(() => {
-    const saved = localStorage.getItem('optialign_products');
+    const saved = localStorage.getItem('nexaretail_products');
     return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
   });
 
@@ -22,7 +22,7 @@ export function AppProvider({ children }) {
 
   // Campaigns state
   const [campaigns, setCampaigns] = useState(() => {
-    const saved = localStorage.getItem('optialign_campaigns');
+    const saved = localStorage.getItem('nexaretail_campaigns');
     return saved ? JSON.parse(saved) : INITIAL_CAMPAIGNS;
   });
 
@@ -31,7 +31,7 @@ export function AppProvider({ children }) {
 
   // Business settings state
   const [settings, setSettings] = useState(() => {
-    const saved = localStorage.getItem('optialign_settings');
+    const saved = localStorage.getItem('nexaretail_settings');
     return saved ? JSON.parse(saved) : INITIAL_SETTINGS;
   });
 
@@ -229,15 +229,15 @@ export function AppProvider({ children }) {
 
   // Persist key states
   useEffect(() => {
-    localStorage.setItem('optialign_products', JSON.stringify(products));
+    localStorage.setItem('nexaretail_products', JSON.stringify(products));
   }, [products]);
 
   useEffect(() => {
-    localStorage.setItem('optialign_campaigns', JSON.stringify(campaigns));
+    localStorage.setItem('nexaretail_campaigns', JSON.stringify(campaigns));
   }, [campaigns]);
 
   useEffect(() => {
-    localStorage.setItem('optialign_settings', JSON.stringify(settings));
+    localStorage.setItem('nexaretail_settings', JSON.stringify(settings));
   }, [settings]);
 
   // Helper for adding toast
